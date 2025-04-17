@@ -1,6 +1,9 @@
+#!/usr/bin/python3
+# -*- coding: utf-8 -*-
 import sys
 import gi
 import re
+import os
 from datetime import datetime, timedelta
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
@@ -13,16 +16,15 @@ class TimeEntry(Gtk.Entry):
         super().__init__()
         self.set_placeholder_text("HH:MM")
 
-        # Create and attach focus event controller
-        focus_controller = Gtk.EventControllerFocus()
-        focus_controller.connect("leave", self.on_focus_out)
-        self.add_controller(focus_controller)
+        # Create and attach focus event controller for selecting text
+        focus_controller_select = Gtk.EventControllerFocus()
+        focus_controller_select.connect("enter", self.on_focus_in)
+        self.add_controller(focus_controller_select)
 
-    def on_focus_out(self, widget):
-        text = self.get_text()
-
-    def validate_time(self, text):
-        return re.match(r'^[0-1]?[0-9]|2[0-3]:[0-5][0-9]$', text) is not None
+    def on_focus_in(self, widget):
+        # Use GLib.idle_add to defer the selection, ensuring it happens after all other focus-related events
+        from gi.repository import GLib
+        GLib.idle_add(self.select_region, 0, -1)
 
     def get_time_in_minutes(self):
         text = self.get_text()
@@ -150,11 +152,17 @@ class TextBoxRow(Gtk.Box):
 
 
 class MainWindow(Gtk.ApplicationWindow):
+    CONFIG_DIR = os.path.expanduser("~/.config/plin/")
+    CONFIG_FILE = os.path.join(CONFIG_DIR, "day-end.txt")
+    
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.set_default_size(800, 500)
         self.set_resizable(False)
         self.set_title("Plin")
+        
+        # Create the configuration directory if it doesn't exist
+        os.makedirs(self.CONFIG_DIR, exist_ok=True)
 
         # Create a box to hold the main content and the top widgets
         main_container = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
@@ -175,6 +183,7 @@ class MainWindow(Gtk.ApplicationWindow):
 
         # Add the top-right time entry
         self.time_entry_top_right = TimeEntry()
+        self.load_time_from_config()  # Load the saved time if available
         time_entry_box = Gtk.Box()
         time_entry_box.set_valign(Gtk.Align.START)
         time_entry_box.set_halign(Gtk.Align.END)
@@ -187,13 +196,40 @@ class MainWindow(Gtk.ApplicationWindow):
         scrolled_window.set_child(box)
         scrolled_window.set_hexpand(True)
         scrolled_window.set_vexpand(True)
-        main_container.append(scrolled_window)
 
         # Add the main content box
         main_container.append(scrolled_window)
-        box.append(TextBoxRow(1))
+        first_row = TextBoxRow(1)
+        box.append(first_row)
+
+        # Set the initial time in the first row's first textbox to 10 minutes after the current time
+        current_time = datetime.now()
+        ten_minutes_later = current_time + timedelta(minutes=10)
+        formatted_time = ten_minutes_later.strftime("%H:%M")  # Format as HH:MM
+        first_row.time_entry.set_text(formatted_time)
+
         # Enforce the rule for the first row
         box.get_first_child().enforce_first_row_checkbox_rule()
+
+        # Connect the delete-event to save the time on application close
+        self.connect("close-request", self.on_close_request)
+
+    def on_close_request(self, *args):
+        self.save_time_to_config()  # Save the time before closing
+        return False  # Return False to allow the window to close
+
+    def save_time_to_config(self):
+        """Save the time in the top-right box to the configuration file."""
+        time_value = self.time_entry_top_right.get_text()
+        with open(self.CONFIG_FILE, "w") as config_file:
+            config_file.write(time_value)
+
+    def load_time_from_config(self):
+        """Load the time from the configuration file into the top-right box."""
+        if os.path.exists(self.CONFIG_FILE):
+            with open(self.CONFIG_FILE, "r") as config_file:
+                time_value = config_file.read().strip()
+                self.time_entry_top_right.set_text(time_value)
 
     def on_update_clicked(self, button):
         # Gather all rows with the first checkbox checked
