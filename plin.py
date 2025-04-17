@@ -1,0 +1,286 @@
+import sys
+import gi
+import re
+from datetime import datetime, timedelta
+gi.require_version('Gtk', '4.0')
+gi.require_version('Adw', '1')
+from gi.repository import Gtk, Adw, Gdk
+
+box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+
+class TimeEntry(Gtk.Entry):
+    def __init__(self):
+        super().__init__()
+        self.set_placeholder_text("HH:MM")
+
+        # Create and attach focus event controller
+        focus_controller = Gtk.EventControllerFocus()
+        focus_controller.connect("leave", self.on_focus_out)
+        self.add_controller(focus_controller)
+
+    def on_focus_out(self, widget):
+        text = self.get_text()
+
+    def validate_time(self, text):
+        return re.match(r'^[0-1]?[0-9]|2[0-3]:[0-5][0-9]$', text) is not None
+
+    def get_time_in_minutes(self):
+        text = self.get_text()
+        if not self.validate_time(text):
+            return 0
+        hours, minutes = map(int, text.split(':'))
+        return hours * 60 + minutes
+
+    def set_time_from_minutes(self, total_minutes):
+        hours = total_minutes // 60
+        minutes = total_minutes % 60
+        self.set_text(f"{hours:02d}:{minutes:02d}")
+
+
+class TextBoxRow(Gtk.Box):
+    def __init__(self, row_number):
+        super().__init__(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        self.set_margin_top(10)
+        self.set_margin_bottom(10)
+        self.set_margin_start(10)
+        self.set_margin_end(10)
+
+        self.row_label = Gtk.Label(label=str(row_number))
+        self.append(self.row_label)
+        self.checkbox = Gtk.CheckButton()
+        self.append(self.checkbox)
+        self.second_checkbox = Gtk.CheckButton()
+        self.second_checkbox.set_sensitive(False)
+        self.append(self.second_checkbox)
+        self.time_entry = TimeEntry()
+        self.time_entry.set_width_chars(10)
+        self.append(self.time_entry)
+
+        self.entry = Gtk.Entry()
+        self.entry.set_width_chars(50)
+        self.entry.connect("activate", self.on_entry_activate)
+        self.append(self.entry)
+
+        adjustment = Gtk.Adjustment(value=10, lower=1, upper=999, step_increment=1)
+        self.duration_spin = Gtk.SpinButton()
+        self.duration_spin.set_adjustment(adjustment)
+        self.duration_spin.set_wrap(True)
+        self.duration_spin.set_numeric(True)
+        self.append(self.duration_spin)
+
+        self.value_label = Gtk.Label(label="?")
+        self.value_label.set_width_chars(4)
+        self.append(self.value_label)
+
+        # Create and attach key event controller
+        key_controller = Gtk.EventControllerKey()
+        key_controller.connect("key-pressed", self.on_key_pressed)
+        self.add_controller(key_controller)
+
+    def on_entry_activate(self, entry):
+        new_row = TextBoxRow(self.get_index() + 2)
+        box.insert_child_after(new_row, self)
+        new_row.set_visible(True)
+        new_row.entry.grab_focus()  # Set focus to the new row's text box
+        self.update_row_numbers()
+
+    def get_index(self):
+        index = 0
+        child = box.get_first_child()
+        while child:
+            if child == self:
+                return index
+            index += 1
+            child = child.get_next_sibling()
+        return -1
+
+    def update_row_numbers(self):
+        index = 1
+        current_row = box.get_first_child()
+        while current_row:
+            if isinstance(current_row, TextBoxRow):
+                current_row.row_label.set_text(str(index))
+                index += 1
+            current_row = current_row.get_next_sibling()
+        self.enforce_first_row_checkbox_rule()
+
+    def enforce_first_row_checkbox_rule(self):
+        current_row = box.get_first_child()
+        while current_row:
+            if isinstance(current_row, TextBoxRow):
+                if current_row == box.get_first_child():
+                    # The first row: checkbox must be checked and insensitive
+                    current_row.checkbox.set_active(True)
+                    current_row.checkbox.set_sensitive(False)
+                else:
+                    # All other rows: checkbox can be toggled
+                    current_row.checkbox.set_sensitive(True)
+            current_row = current_row.get_next_sibling()
+
+    def on_key_pressed(self, controller, keyval, keycode, state):
+        if state & Gdk.ModifierType.ALT_MASK:  # Alt key is pressed
+            if keyval == Gdk.KEY_Up:
+                self.move_row_up()
+                return True
+            elif keyval == Gdk.KEY_Down:
+                self.move_row_down()
+                return True
+            elif keyval == Gdk.KEY_Delete:
+                self.delete_row()
+                return True
+        return False
+
+    def move_row_up(self):
+        previous_sibling = self.get_prev_sibling()
+        if previous_sibling:
+            box.reorder_child_after(self, previous_sibling.get_prev_sibling())
+            self.update_row_numbers()
+
+    def move_row_down(self):
+        next_sibling = self.get_next_sibling()
+        if next_sibling:
+            box.reorder_child_after(self, next_sibling)
+            self.update_row_numbers()
+
+    def delete_row(self):
+        # Ensure there's at least one row remaining
+        if self.get_next_sibling() is not None or self.get_prev_sibling() is not None:
+            box.remove(self)
+            self.update_row_numbers()
+
+
+class MainWindow(Gtk.ApplicationWindow):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.set_default_size(800, 500)
+        self.set_resizable(False)
+        self.set_title("Plin")
+
+        # Create a box to hold the main content and the top widgets
+        main_container = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        self.set_child(main_container)
+
+        # Add an overlay to position the Update button and time entry box
+        overlay = Gtk.Overlay()
+        main_container.append(overlay)
+
+        # Create a box to hold the top widgets
+        top_container = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        overlay.set_child(top_container)
+
+        # Add the Update button on the top-left
+        update_button = Gtk.Button(label="Update")
+        update_button.connect("clicked", self.on_update_clicked)
+        top_container.append(update_button)
+
+        # Add the top-right time entry
+        self.time_entry_top_right = TimeEntry()
+        time_entry_box = Gtk.Box()
+        time_entry_box.set_valign(Gtk.Align.START)
+        time_entry_box.set_halign(Gtk.Align.END)
+        time_entry_box.append(self.time_entry_top_right)
+        overlay.add_overlay(time_entry_box)
+        
+        # Add a scrolled window for the rows
+        scrolled_window = Gtk.ScrolledWindow()
+        scrolled_window.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+        scrolled_window.set_child(box)
+        scrolled_window.set_hexpand(True)
+        scrolled_window.set_vexpand(True)
+        main_container.append(scrolled_window)
+
+        # Add the main content box
+        main_container.append(scrolled_window)
+        box.append(TextBoxRow(1))
+        # Enforce the rule for the first row
+        box.get_first_child().enforce_first_row_checkbox_rule()
+
+    def on_update_clicked(self, button):
+        # Gather all rows with the first checkbox checked
+        checked_rows = []
+        current_row = box.get_first_child()
+        while current_row:
+            if isinstance(current_row, TextBoxRow) and current_row.checkbox.get_active():
+                checked_rows.append(current_row)
+            current_row = current_row.get_next_sibling()
+
+        # Add the top-right time entry as the "end point" if no following checked rows exist
+        is_last_checked_row = False
+
+        # Process each pair of consecutive checked rows or the last checked row with the top-right time entry
+        for i in range(len(checked_rows)):
+            start_row = checked_rows[i]
+            if i + 1 < len(checked_rows):
+                # If there is a next checked row, use it as the end row
+                end_row = checked_rows[i + 1]
+            else:
+                # This is the last checked row, use the top-right time entry as the end
+                is_last_checked_row = True
+                end_row = None
+
+            # Calculate value a (time difference in minutes)
+            time_start = start_row.time_entry.get_time_in_minutes()
+            if end_row:
+                time_end = end_row.time_entry.get_time_in_minutes()
+            else:
+                time_end = self.time_entry_top_right.get_time_in_minutes()
+            value_a = abs(time_end - time_start)
+
+            # Calculate value b (total duration of intermediate rows)
+            value_b = 0
+            intermediate_rows = []
+            current_row = start_row
+            while current_row and current_row != end_row:
+                intermediate_rows.append(current_row)
+                value_b += current_row.duration_spin.get_value_as_int()
+                current_row = current_row.get_next_sibling()
+
+            # If this is the last checked row, also include all rows after it
+            if is_last_checked_row:
+                while current_row:
+                    intermediate_rows.append(current_row)
+                    value_b += current_row.duration_spin.get_value_as_int()
+                    current_row = current_row.get_next_sibling()
+
+            # Skip if value_b is zero to prevent division errors
+            if value_b == 0:
+                continue
+
+            # Update the labels and times for intermediate rows
+            prev_time = time_start
+            prev_calculated_value = 0  # To store the calculated value of the previous row
+
+            for row in intermediate_rows:  # Include the last intermediate row
+                duration = row.duration_spin.get_value_as_int()
+                calculated_value = (value_a / value_b) * duration
+                row.value_label.set_text(f"{round(calculated_value)}")
+
+                # Update the time entry for the row using the previous row's calculated value
+                new_time = prev_time + round(prev_calculated_value)
+                row.time_entry.set_time_from_minutes(new_time)
+
+                # Update for the next row
+                prev_time = new_time
+                prev_calculated_value = calculated_value
+
+    def update_row_numbers(self):
+        index = 1
+        current_row = box.get_first_child()
+        while current_row:
+            if isinstance(current_row, TextBoxRow):
+                current_row.row_label.set_text(str(index))
+                index += 1
+            current_row = current_row.get_next_sibling()
+
+
+class MyApp(Adw.Application):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.connect('activate', self.on_activate)
+
+    def on_activate(self, app):
+        self.win = MainWindow(application=app)
+        self.win.present()
+
+app = MyApp(application_id="com.example.GtkApplication")
+app.run(sys.argv)
