@@ -3,7 +3,7 @@ Simple day planning software for Linux using GTK4, inspired by SuperMemo Plan
 
 ## Installation
 ```
-curl -fsSL https://github.com/connor5043/Plin/blob/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/connor5043/Plin/refs/heads/main/install.sh | bash
 ```
 
 ## Future
