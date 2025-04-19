@@ -79,6 +79,7 @@ class TextBoxRow(tk.Frame):
         self.duration_spin = ttk.Spinbox(self, from_=1, to=999, increment=5, width=5)
         self.duration_spin.set(10)
         self.duration_spin.grid(row=0, column=5, padx=5)
+        self.duration_spin.bind("<Return>", self.add_new_row)  # Bind Enter key to Spinbox
 
         self.value_label = tk.Label(self, text="?", width=4, bg="#f6f5f4")
         self.value_label.grid(row=0, column=6, padx=5)
@@ -352,19 +353,34 @@ class MainWindow(tk.Tk):
             # Update the labels and times for intermediate rows
             prev_time = time_start
             prev_calculated_value = 0  # To store the calculated value of the previous row
-
+            
+            total_removed = 0
+            
             for row in intermediate_rows:  # Include the last intermediate row
                 duration = int(row.duration_spin.get())  # Convert to int
                 calculated_value = (value_a / value_b) * duration
-                row.value_label.config(text=f"{round(calculated_value)}")
-
+                floored_value = int(calculated_value)  # Floor the value
+                total_removed += calculated_value - floored_value  # Accumulate the removed fraction
+                row.value_label.config(text=f"{floored_value}")
+                
+            # Redistribute the total removed amount
+            total_removed = round(total_removed)  # Round the total removed to the nearest integer
+            while total_removed >= 1:
+                for row in intermediate_rows:
+                    row.value_label.config(text=str(int(row.value_label.cget("text")) + 1))
+                    total_removed -= 1
+                    if total_removed < 1:
+                        break
+            
+            # Update row times
+            for row in intermediate_rows:
                 # Update the time entry for the row using the previous row's calculated value
-                new_time = prev_time + round(prev_calculated_value)
+                new_time = prev_time + prev_calculated_value
                 row.time_entry.set_time_from_minutes(new_time)
 
                 # Update for the next row
                 prev_time = new_time
-                prev_calculated_value = calculated_value
+                prev_calculated_value = int(row.value_label.cget("text"))
 
 if __name__ == "__main__":
     app = MainWindow()
