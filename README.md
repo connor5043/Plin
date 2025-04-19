@@ -1,7 +1,8 @@
 # Plin
 Simple, lightweight day-planning application using Tk. Inspired by SuperMemo Plan
 
-## Installation (Linux 🐧)
+## Installation
+### On Linux 🐧
 ```
 curl -fsSL https://raw.githubusercontent.com/connor5043/Plin/refs/heads/main/install.sh | bash
 ```
