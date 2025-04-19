@@ -7,7 +7,7 @@ curl -fsSL https://raw.githubusercontent.com/connor5043/Plin/refs/heads/main/ins
 ```
 
 ## Future
-- [ ] Lower resource utilization by switching GUI framework
+- [x] Lower resource utilization by switching GUI framework
 - [ ] Second checkbox (R) functionality
 - [ ] CalDAV syncing
 - [ ] Saving and opening

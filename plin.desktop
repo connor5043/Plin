@@ -4,6 +4,6 @@ Type=Application
 Name=Plin
 Comment=Time management application
 Icon=utilities-terminal
-Exec=env bash -c "GSK_RENDERER=cairo GTK_THEME=Adwaita:light ~/.local/bin/plin"
+Exec=env bash -c "~/.local/bin/plin"
 Terminal=false
 Categories=Utility;TimeManagement;
