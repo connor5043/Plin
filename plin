@@ -71,7 +71,7 @@ class TextBoxRow(tk.Frame):
 
         self.entry = ttk.Entry(self, width=48)
         self.entry.grid(row=0, column=4, padx=5)
-        self.entry.bind("<Return>", lambda e: self.add_new_row())
+        self.entry.bind("<Return>", self.add_new_row)  # Bind Enter key to add a new row
         self.entry.bind("<Alt-Delete>", lambda e: self.delete_row())
         self.entry.bind("<Alt-Up>", lambda e: self.move_row(-1))
         self.entry.bind("<Alt-Down>", lambda e: self.move_row(1))
@@ -91,8 +91,14 @@ class TextBoxRow(tk.Frame):
         else:
             self.checkbox1.config(state=tk.NORMAL)
 
-    def add_new_row(self):
-        self.update_callback()
+    def add_new_row(self, event=None):
+        """
+        Adds a new row directly below the current one and moves the cursor to the new row's entry field.
+        """
+        current_index = self.main_window.rows.index(self)
+        new_row = self.update_callback(current_index + 1)
+        if new_row:  # Ensure a new row was added
+            new_row.entry.focus_set()  # Move the cursor to the new row's entry field
 
     def delete_row(self):
         self.delete_callback(self)
@@ -211,13 +217,31 @@ class MainWindow(tk.Tk):
         # Save time on window close
         self.protocol("WM_DELETE_WINDOW", self.on_close_request)
 
-    def add_row(self, row_number=None):
-        if row_number is None:
-            row_number = len(self.rows) + 1
+    def add_row(self, index=None):
+        """
+        Adds a new row to the rows list at the specified index or at the end if no index is provided.
+        """
+        if index is None:
+            index = len(self.rows)
+        row_number = index + 1
+        
+        # Create a new row
         row = TextBoxRow(self.scrollable_frame, self, row_number, self.add_row, self.delete_row, self.move_row)
-        row.pack(fill=tk.X, pady=2)
-        self.rows.append(row)
+        
+        # Insert the row visually in the correct position
+        if index < len(self.rows):
+            # Pack the new row before the row at the specified index
+            row.pack(fill=tk.X, pady=2, before=self.rows[index])
+        else:
+            # Pack the new row at the end
+            row.pack(fill=tk.X, pady=2)
+        
+        # Insert the row into the rows list
+        self.rows.insert(index, row)
+
+        # Update the row numbers
         self.update_row_numbers()
+        return row  # Return the newly created row
 
     def delete_row(self, row):
         if len(self.rows) > 1:
