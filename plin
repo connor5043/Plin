@@ -11,21 +11,24 @@ class TimeEntry(ttk.Entry):
         super().__init__(parent, **kwargs)
         self.insert(0, "HH:MM")
         self.bind("<FocusIn>", self.on_focus_in)
+        # Removed the dependency on `main_window`
 
     def on_focus_in(self, event):
         self.select_range(0, tk.END)
 
     def get_time_in_minutes(self):
         text = self.get()
-        hours, minutes = map(int, text.split(':'))
-        return hours * 60 + minutes
+        try:
+            hours, minutes = map(int, text.split(':'))
+            return hours * 60 + minutes
+        except ValueError:
+            return None  # Return None if the input is invalid
 
     def set_time_from_minutes(self, total_minutes):
         hours = total_minutes // 60
         minutes = total_minutes % 60
         self.delete(0, tk.END)
         self.insert(0, f"{hours:02d}:{minutes:02d}")
-
 
 class TextBoxRow(tk.Frame):
     def __init__(self, parent, main_window, row_number, update_callback, delete_callback, move_callback):
@@ -48,7 +51,8 @@ class TextBoxRow(tk.Frame):
             activebackground="#f6f5f4",
             relief="flat",
             highlightthickness=0,
-            bd=0
+            bd=0,
+            command=self.main_window.on_update_clicked  # Trigger update on checkbox state change
         )
         self.checkbox1.grid(row=0, column=1, padx=5)
 
@@ -68,6 +72,8 @@ class TextBoxRow(tk.Frame):
 
         self.time_entry = TimeEntry(self, width=7)
         self.time_entry.grid(row=0, column=3, padx=5)
+        # Bind <FocusOut> to trigger update from the row
+        self.time_entry.bind("<FocusOut>", lambda e: self.main_window.on_update_clicked())
 
         self.entry = ttk.Entry(self, width=48)
         self.entry.grid(row=0, column=4, padx=5)
@@ -79,7 +85,9 @@ class TextBoxRow(tk.Frame):
         self.duration_spin = ttk.Spinbox(self, from_=1, to=999, increment=5, width=5)
         self.duration_spin.set(10)
         self.duration_spin.grid(row=0, column=5, padx=5)
-        self.duration_spin.bind("<Return>", self.add_new_row)  # Bind Enter key to Spinbox
+        # Bind <FocusOut> and <Return> to trigger update
+        self.duration_spin.bind("<FocusOut>", lambda e: self.main_window.on_update_clicked())
+        self.duration_spin.bind("<Return>", lambda e: self.main_window.on_update_clicked())
 
         self.value_label = tk.Label(self, text="?", width=4, bg="#f6f5f4")
         self.value_label.grid(row=0, column=6, padx=5)
@@ -100,12 +108,15 @@ class TextBoxRow(tk.Frame):
         new_row = self.update_callback(current_index + 1)
         if new_row:  # Ensure a new row was added
             new_row.entry.focus_set()  # Move the cursor to the new row's entry field
+        self.main_window.on_update_clicked()  # Trigger update after adding a row
 
     def delete_row(self):
         self.delete_callback(self)
+        self.main_window.on_update_clicked()  # Trigger update after deleting a row
 
     def move_row(self, direction):
         self.move_callback(self, direction)
+        self.main_window.on_update_clicked()  # Trigger update after moving a row
 
     def swap_contents_with(self, other_row):
         """Swap the contents of this row with another row."""
@@ -160,22 +171,9 @@ class MainWindow(tk.Tk):
         # Create configuration directory
         os.makedirs(self.CONFIG_DIR, exist_ok=True)
 
-        # Top frame with update button and time entry
+        # Top frame with time entry only
         top_frame = tk.Frame(self, bg="#f6f5f4")
         top_frame.pack(side=tk.TOP, fill=tk.X, padx=10, pady=5)
-
-        # Update button with custom background and border color
-        update_button = tk.Button(
-            top_frame,
-            text="Update",
-            bg="#f8f7f7",
-            activebackground="#f8f7f7",
-            relief="flat",
-            highlightbackground="#cdc7c2",  # Border color
-            highlightthickness=1,  # Border thickness
-        )
-        update_button.config(command=self.on_update_clicked)
-        update_button.pack(side=tk.LEFT)
 
         self.time_entry_top_right = TimeEntry(top_frame, width=6)
         self.time_entry_top_right.pack(side=tk.RIGHT)
@@ -225,10 +223,10 @@ class MainWindow(tk.Tk):
         if index is None:
             index = len(self.rows)
         row_number = index + 1
-        
+
         # Create a new row
         row = TextBoxRow(self.scrollable_frame, self, row_number, self.add_row, self.delete_row, self.move_row)
-        
+
         # Insert the row visually in the correct position
         if index < len(self.rows):
             # Pack the new row before the row at the specified index
@@ -236,7 +234,7 @@ class MainWindow(tk.Tk):
         else:
             # Pack the new row at the end
             row.pack(fill=tk.X, pady=2)
-        
+
         # Insert the row into the rows list
         self.rows.insert(index, row)
 
@@ -266,6 +264,7 @@ class MainWindow(tk.Tk):
         # Always enforce the first row checkbox rule
         for row in self.rows:
             row.enforce_first_row_checkbox_rule()
+        self.on_update_clicked()  # Trigger update after updating row numbers
 
     def time_to_minutes(self, time_str):
         hours, minutes = map(int, time_str.split(":"))
@@ -305,8 +304,21 @@ class MainWindow(tk.Tk):
     def on_update_clicked(self):
         """
         Updates intermediate rows based on time differences between checked rows.
-        Calculates proportional values and updates labels/timestamps accordingly.
+        Validates that the latest time in the far-left textboxes is earlier than the time on the top-right.
         """
+        # Validate that the latest time in the far-left textboxes is earlier than the time on the top-right
+        max_time_in_rows = None
+        for row in self.rows:
+            row_time = row.time_entry.get_time_in_minutes()
+            if row_time is not None:
+                if max_time_in_rows is None or row_time > max_time_in_rows:
+                    max_time_in_rows = row_time
+
+        top_right_time = self.time_entry_top_right.get_time_in_minutes()
+        if top_right_time is None or (max_time_in_rows is not None and max_time_in_rows >= top_right_time):
+            print("Validation failed: Latest time in far-left textboxes is not earlier than the top-right time.")
+            return  # Skip the update if validation fails
+
         # Gather all rows with the first checkbox checked
         checked_rows = []
         for row in self.rows:  # Iterate through all rows
@@ -314,9 +326,6 @@ class MainWindow(tk.Tk):
                 checked_rows.append(row)
 
         # Add the top-right time entry as the "end point" if no following checked rows exist
-        is_last_checked_row = False
-
-        # Process each pair of consecutive checked rows or the last checked row with the top-right time entry
         for i in range(len(checked_rows)):
             start_row = checked_rows[i]
             if i + 1 < len(checked_rows):
@@ -324,15 +333,22 @@ class MainWindow(tk.Tk):
                 end_row = checked_rows[i + 1]
             else:
                 # This is the last checked row, use the top-right time entry as the end
-                is_last_checked_row = True
                 end_row = None
 
             # Calculate value_a (time difference in minutes)
             time_start = start_row.time_entry.get_time_in_minutes()
+            if time_start is None:  # Skip update if time_start is invalid
+                continue
+
             if end_row:
                 time_end = end_row.time_entry.get_time_in_minutes()
+                if time_end is None:  # Skip update if time_end is invalid
+                    continue
             else:
-                time_end = self.time_entry_top_right.get_time_in_minutes()
+                time_end = top_right_time
+                if time_end is None:  # Skip update if the top-right entry is invalid
+                    continue
+
             value_a = abs(time_end - time_start)
 
             # Calculate value_b (total duration of intermediate rows)
@@ -381,6 +397,7 @@ class MainWindow(tk.Tk):
                 # Update for the next row
                 prev_time = new_time
                 prev_calculated_value = int(row.value_label.cget("text"))
+
 
 if __name__ == "__main__":
     app = MainWindow()
