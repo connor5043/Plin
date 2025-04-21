@@ -72,8 +72,9 @@ class TextBoxRow(tk.Frame):
 
         self.time_entry = TimeEntry(self, width=7)
         self.time_entry.grid(row=0, column=3, padx=5)
-        # Bind <FocusOut> to trigger update from the row
+        # Bind <FocusOut> and <Return> to trigger update from the row
         self.time_entry.bind("<FocusOut>", lambda e: self.main_window.on_update_clicked())
+        self.time_entry.bind("<Return>", lambda e: self.main_window.on_update_clicked())
 
         self.entry = ttk.Entry(self, width=48)
         self.entry.grid(row=0, column=4, padx=5)
