@@ -86,9 +86,9 @@ class TextBoxRow(tk.Frame):
         self.duration_spin = ttk.Spinbox(self, from_=1, to=999, increment=5, width=5)
         self.duration_spin.set(10)
         self.duration_spin.grid(row=0, column=5, padx=5)
-        # Bind <FocusOut> and <Return> to trigger update
+        # Bind <FocusOut> to trigger update, and <Return> to both trigger update and add a new row
         self.duration_spin.bind("<FocusOut>", lambda e: self.main_window.on_update_clicked())
-        self.duration_spin.bind("<Return>", lambda e: self.main_window.on_update_clicked())
+        self.duration_spin.bind("<Return>", self.add_row_and_trigger_update)
 
         self.value_label = tk.Label(self, text="?", width=4, bg="#f6f5f4")
         self.value_label.grid(row=0, column=6, padx=5)
@@ -110,6 +110,13 @@ class TextBoxRow(tk.Frame):
         if new_row:  # Ensure a new row was added
             new_row.entry.focus_set()  # Move the cursor to the new row's entry field
         self.main_window.on_update_clicked()  # Trigger update after adding a row
+
+    def add_row_and_trigger_update(self, event=None):
+        """
+        Triggers the update function and adds a new row below this one.
+        """
+        self.main_window.on_update_clicked()  # Trigger update
+        self.add_new_row(event)  # Add a new row
 
     def delete_row(self):
         self.delete_callback(self)
@@ -157,7 +164,6 @@ class TextBoxRow(tk.Frame):
         other_row.duration_spin.delete(0, tk.END)
         other_row.duration_spin.insert(0, self_duration)
 
-
 class MainWindow(tk.Tk):
     CONFIG_DIR = os.path.expanduser("~/.config/plin/")
     CONFIG_FILE = os.path.join(CONFIG_DIR, "day-end.txt")
@@ -178,6 +184,11 @@ class MainWindow(tk.Tk):
 
         self.time_entry_top_right = TimeEntry(top_frame, width=6)
         self.time_entry_top_right.pack(side=tk.RIGHT)
+
+        # Bind <FocusOut> and <Return> to trigger update
+        self.time_entry_top_right.bind("<FocusOut>", lambda e: self.on_update_clicked())
+        self.time_entry_top_right.bind("<Return>", lambda e: self.on_update_clicked())
+
         self.load_time_from_config()
 
         # Scrollable frame for rows

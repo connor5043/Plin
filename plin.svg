@@ -1,0 +1,42 @@
+<svg width="100%" height="100%" viewBox="0 0 600 600"
+    xmlns="http://www.w3.org/2000/svg"
+    xmlns:xlink="http://www.w3.org/1999/xlink">
+    
+  <desc><![CDATA[
+    Yin Yang Clock
+    
+    Clock face rotates once per day and indicates daylight or darkness
+    As evening approaches, the Yin (shady side) starts to take over the top of the clock and
+    as morning approaches, the Yang (sunny side) starts to take over the top of the clock
+    
+    written by Jay Nick
+    steamcoded.org
+  ]]>
+  </desc>
+  
+  <g>
+    <g id="yinyang">
+      <g id="yy">
+        <circle cx="300" cy="300" r="290" style="fill:gray;" />
+        <path d="M300,10A145,145,0,1,0,300,300A145,145,0,0,1,300,590A290,290,0,1,0,300,10" style="fill:white;" />
+        <circle cx="300" cy="155" r="40" style="fill:gray;" />
+        <circle cx="300" cy="445" r="40" style="fill:white;" />
+      </g>
+    </g>
+
+    <g id="hours" transform="rotate(300,300,300)">
+      <path d="M290,300L300,150L310,300L300,350z" style="fill:black">
+      </path>
+    </g>
+    <g id="minutes" transform="rotate(30,300,300)">
+      <path d="M290,300L300,80L310,300L300,380z" style="fill:black">
+      </path>
+    </g>
+    <g id="seconds" transform="rotate(150,300,300)">
+      <path d="M293,300L300,50L307,300L300,380z" style="fill:black">
+      </path>
+    </g>
+  </g>
+  
+  <circle cx="300" cy="300" r="290" style="fill:none;stroke:black;stroke-width:1.5px;" />
+</svg>
