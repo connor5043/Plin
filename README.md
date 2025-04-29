@@ -1,15 +1,8 @@
 # Plin
 Simple, lightweight day-planning application using Tk. Inspired by SuperMemo Plan
 
-## Installation on macOS 🍏
-python3-tk is required
-```
-curl -fsSL https://raw.githubusercontent.com/connor5043/Plin/refs/heads/main/gen-app-bundle.sh | bash
-```
-Move the generated Plin.app to /Applications.
-
-## Installation on Linux 🐧
-python3-tk and Xorg / Xwayland are required
+## Installation
+python3-tk is required, and Xorg / Xwayland on Linux
 ```
 curl -fsSL https://raw.githubusercontent.com/connor5043/Plin/refs/heads/main/install.sh | bash
 ```
