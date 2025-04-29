@@ -165,7 +165,10 @@ class TextBoxRow(tk.Frame):
         other_row.duration_spin.insert(0, self_duration)
 
 class MainWindow(tk.Tk):
-    CONFIG_DIR = os.path.expanduser("~/.config/plin/")
+    if platform.system() == "Darwin":  # Check if the system is macOS
+        CONFIG_DIR = os.path.expanduser("~/Library/Preferences/plin")
+    else:  # Default to ~/.config/plin for other systems
+        CONFIG_DIR = os.path.expanduser("~/.config/plin")
     CONFIG_FILE = os.path.join(CONFIG_DIR, "day-end.txt")
 
     def __init__(self):
