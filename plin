@@ -83,6 +83,7 @@ class TextBoxRow(tk.Frame):
         self.entry.bind("<Alt-Delete>", lambda e: self.delete_row())
         self.entry.bind("<Alt-Up>", lambda e: self.move_row(-1))
         self.entry.bind("<Alt-Down>", lambda e: self.move_row(1))
+        self.entry.bind("<Control-s>", self.set_current_time_and_check)
 
         self.duration_spin = ttk.Spinbox(self, from_=1, to=999, increment=5, width=5)
         self.duration_spin.set(10)
@@ -93,6 +94,17 @@ class TextBoxRow(tk.Frame):
 
         self.value_label = tk.Label(self, text="?", width=4, bg="#f6f5f4")
         self.value_label.grid(row=0, column=6, padx=5)
+
+    def set_current_time_and_check(self, event=None):
+        """
+        Sets the time entry to the current time and checks the first checkbox.
+        """
+        current_time = datetime.now().strftime("%H:%M")
+        self.time_entry.delete(0, tk.END)
+        self.time_entry.insert(0, current_time)
+        self.checkbox_var1.set(True)
+        self.main_window.on_update_clicked()  # Trigger an update after the change
+
 
     def enforce_first_row_checkbox_rule(self):
         """Ensure the first row's first checkbox is always checked and disabled."""
